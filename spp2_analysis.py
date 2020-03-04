@@ -77,7 +77,11 @@ def load_data(stock_name):
     target_dir = os.path.join(this_dir, f_name)
     sc = joblib.load(target_dir)
 
-    return(model, X_all, y_all, bPar, sc)
+    f_name = prefix + 'dates.npy'
+    target_dir = os.path.join(this_dir, f_name)
+    dates = np.load(target_dir, allow_pickle=True)
+
+    return(model, X_all, y_all, bPar, sc, dates)
 
 ####################################################################################################################################################
 # ensure_dir_exists: checks a target director to make a file, creates it
@@ -107,7 +111,7 @@ def data_division_plot(bPar, target_dir, title = 'Sample Sizes of Data'):
 # pred_res: creates and saves visuals of predictions and residuals
 #           calculates R^2
 ####################################################################################################################################################
-def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, points):
+def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, dates):
     y_hat = regressor_mae.predict(X_all, batch_size = bPar['batch_size'])
     regressor_mae.reset_states()
 
@@ -120,7 +124,6 @@ def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, points
     y_hat = sc.inverse_transform(y_hat)
     y_all = sc.inverse_transform(y_all)
     X_all = sc.inverse_transform(X_all)
-
 
     # make linear y_hat
     y_hat_linear30 = []
@@ -173,60 +176,66 @@ def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, points
 
     # # Visualising the results
 
-    plt.plot( range(10 + 750, 10+len(X_plot)), y_hat_linear10[750 : ].astype(float), color = 'purple', label = '10-day prediction')
-    plt.plot( range(30 + 750, 30+len(X_plot)), y_hat_linear30[750 : ].astype(float), color = 'green' , label = '30-day prediction')
-    plt.plot( range(0 + 750, len(X_plot)), X_plot[750:], color = 'red', label = 'Real Tesla Stock Price')
-    plt.title('Predicted vs Real Prices')
-    plt.xlabel('Market Days After IPO')
-    plt.ylabel('Tesla Stock Price')
-    plt.axvline(x = bPar['train_end'] - bPar['train_start'])
-    plt.axvline(x = bPar['test_end'] - bPar['train_start'])
+    title = pre_name + ': Predicted vs Real Prices'
 
-    plt.text(x = (bPar['train_start'] + bPar['train_end'])/2, y = 100, s = 'training')
-    plt.text(x = bPar['test_start'], y = 100, s = 'testing')
-
-    plt.title('Predicted vs Real Prices')
+    start = bPar['train_start']
+    stop = bPar['future_end'] # added a timesteps-length buffer to the end of dates--imperfect as timesteps is actually market days
+    step = int( ( stop - start ) / 5 )
+    plt.plot_date( dates[range(start + 10, stop + 10) ] , y_hat_linear10.astype(float), fmt = '--m', label = '10-day prediction')
+    plt.plot_date( dates[range(start + 30, stop + 30) ],  y_hat_linear30.astype(float), fmt = '--g' , label = '30-day prediction')
+    plt.plot_date( dates[range(start, stop)    ],  X_plot, fmt = '-r', label = 'Actual Price')
+    plt.title(title)
     plt.xlabel('Market Days After IPO')
-    plt.ylabel('Tesla Stock Price')
+    plt.ylabel('Stock Price')
+    plt.xticks( dates[range(start, stop, step) ] )
+    here = bPar['test_start']
+    plt.axvline(x = dates[here])
+
+#    plt.axvline(x = bPar['train_end'] - bPar['train_start'])
+#    plt.axvline(x = bPar['test_end'] - bPar['train_start'])
+
+    plt.text(x = dates[int((start + here)/2)], y = min(X_plot), s = 'training')
+    plt.text(x = dates[here],  y = min(X_plot), s = 'testing')
+
     plt.legend()
 
     ensure_dir_exists(target_dir)
     f_name0 = pre_name + 'Predictions.png'
     target_dir0 = os.path.join(target_dir, f_name0 )
     plt.savefig(target_dir0)
-    #plt.show()
 
     plt.close()
 
-    plt.plot( range(10 + bPar['test_start'], 10 +len(X_plot)), y_hat_linear10[bPar['test_start'] : ].astype(float), color = 'purple',label = '10-day prediction')
-    plt.plot( range(20 + bPar['test_start'], 20 +len(X_plot)), y_hat_linear20[bPar['test_start'] : ].astype(float), color = 'blue',  label = '20-day prediction')
-    plt.plot( range(30 + bPar['test_start'], 30 +len(X_plot)), y_hat_linear30[bPar['test_start'] : ].astype(float), color = 'green', label = '30-day prediction')
-    plt.plot( range( 0 + bPar['test_start'],  0 +len(X_plot)), X_plot[bPar['test_start'] : ], color = 'red', label = 'Real Tesla Stock Price')
-    plt.title('Predicted vs Real Prices: Closer Look')
+    start = bPar['test_start']
+    stop = bPar['future_end']
+    step = int( ( stop - start ) / 5 )
+
+    title = pre_name + ': Predicted vs Real Prices-Test Data Only'
+    plt.plot_date( dates[range(10 + bPar['test_start'], 10 +len(X_plot))], y_hat_linear10[bPar['test_start'] : ].astype(float), fmt = '--m', label = '10-day prediction')
+    plt.plot_date( dates[range(20 + bPar['test_start'], 20 +len(X_plot))], y_hat_linear20[bPar['test_start'] : ].astype(float), fmt = '--b', label = '20-day prediction')
+    plt.plot_date( dates[range(30 + bPar['test_start'], 30 +len(X_plot))], y_hat_linear30[bPar['test_start'] : ].astype(float), fmt = '--g', label = '30-day prediction')
+    plt.plot_date( dates[range( 0 + bPar['test_start'],  0 +len(X_plot))], X_plot[bPar['test_start'] : ], fmt = '-r', label = 'Real Tesla Stock Price')
+    plt.title(title)
     plt.xlabel('Market Days After IPO')
-    plt.ylabel('Tesla Stock Price')
+    plt.xticks( dates[range(start, stop, step) ] )
+    plt.ylabel('Stock Price')
 
     i = bPar['test_start'] - bPar['scrap_end'] + 64
-    while i < bPar['future_end']:
-        plt.axvline(x = i, alpha = 0.5)
-        i+=64
-
-    plt.title('Predicted vs Real Prices')
-    plt.xlabel('Market Days After IPO')
-    plt.ylabel('Tesla Stock Price')
+    # while i < bPar['future_end']:
+    #     plt.axvline(x = i, alpha = 0.5)
+    #     i+=64
     plt.legend()
-
-
 
     ensure_dir_exists(target_dir)
     f_name0 = pre_name + 'Predictions_Zoomed.png'
     target_dir0 = os.path.join(target_dir, f_name0 )
     plt.savefig(target_dir0)
-    #plt.show()
 
     plt.close()
 
     #Residuals
+
+    title = pre_name + ': Residuals for Stateful LSTM Model'
     plt.scatter( range(10 + bPar['test_start'], 10 + bPar['test_start'] +  len(res30) ), res30, alpha = 0.3, color = 'green' ,  label = '30-Day Residuals')
     plt.scatter( range(20 + bPar['test_start'], 20 + bPar['test_start'] +  len(res20) ), res20, alpha = 0.3, color = 'blue'  ,  label = '20-Day Residuals')
     plt.scatter( range(30 + bPar['test_start'], 30 + bPar['test_start'] +  len(res10) ), res10, alpha = 0.3, color = 'purple',  label = '10-Day Residuals')
@@ -237,31 +246,30 @@ def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, points
     plt.axvline(x = here)
     plt.text(x = here, y = min(res10), s = 'local min')
 
-#    plt.axvline(x = 2347)
-
     plt.legend()
-    plt.title('Residuals for Stateful LSTM Predicting Tesla Stock Price')
+    plt.title(title)
     plt.xlabel('Market Days After IPO')
     plt.ylabel('Residuals')
 
     f_name0 = pre_name + 'Residuals.png'
     target_dir0 = os.path.join(target_dir, f_name0 )
     plt.savefig(target_dir0)
-    #plt.show()
     plt.close()
 
+    title = pre_name + ': 10-Day Predicted vs Actual Values'
     plt.scatter( y_test10, y_hat_linear10_test, alpha = 0.35, label = '10-Day Predicted vs Actual')
     plt.plot( y_test10, y_test10, alpha = 0.5, color = 'grey')
     plt.xlabel('Actual Values')
     plt.ylabel('Predicted Values')
-    plt.title('1-Day Predicted vs Actual Values')
+    plt.title(title)
     f_name0 = pre_name + 'Pred_v_actual.png'
     target_dir0 = os.path.join(target_dir, f_name0)
     plt.savefig(target_dir0)
     plt.close()
 
+    title = pre_name + ': R-Squared Comparison'
     plt.bar ( ['10-Day','15-Day','20-Day','25-Day', '30-Day'], [R2_10, R2_15, R2_20, R2_25, R2_30]  ,  label = 'Sample Sizes')
-    plt.title('R-Squared Comparison')
+    plt.title(title)
     plt.xlabel('Days into Future')
     plt.ylabel('R-Squared')
     plt.legend()
@@ -373,11 +381,11 @@ stocks = list(listdir(target_dir) )
 
 this_dir = os.path.join(this_dir, 'visuals')
 for stock in stocks:
-    model, X_all, y_all, bPar, sc = load_data(stock)
+    model, X_all, y_all, bPar, sc, dates = load_data(stock)
     target_dir = os.path.join(this_dir, stock)
     ensure_dir_exists(target_dir)
     data_division_plot(bPar, target_dir, title = 'Sample Sizes of Data')
-    pred_res(model, bPar, sc, X_all, y_all, target_dir, stock, points = False)
+    pred_res(model, bPar, sc, X_all, y_all, target_dir, stock, dates)
 
 ####################################################################################################################################################
 # MACHINE LEARNING ANALYISIS & VISUALIZATION #

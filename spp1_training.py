@@ -131,7 +131,7 @@ def streamlined_model(data, bPar, epochs, df_name):
 ####################################################################################################################################################
 # save_data: saves a set of parameters for reloading later
 ####################################################################################################################################################
-def save_data(stock_name, model, X_all, y_all, bPar, sc):
+def save_data(stock_name, model, X_all, y_all, bPar, sc, dates):
     this_dir = os.path.dirname(os.path.realpath('__file__') )
     this_dir = os.path.join(this_dir, 'predictions')
     this_dir = os.path.join(this_dir, stock_name)
@@ -164,6 +164,11 @@ def save_data(stock_name, model, X_all, y_all, bPar, sc):
     target_dir = os.path.join(this_dir, f_name)
     joblib.dump(sc, target_dir)
 
+    f_name = prefix + 'dates.npy'
+    target_dir = os.path.join(this_dir, f_name)
+    np.save(target_dir, dates)
+
+
 ####################################################################################################################################################
 ####################################################################################################################################################
 # MAIN #
@@ -177,7 +182,6 @@ target_dir = os.path.join(this_dir, 'target_stocks/stocks.csv')
 stocks = pd.read_csv(target_dir, delimiter=',') 
 
 print(stocks.head() )
-#print(stocks.symbol.unique() )
 ####################################################################################################################################################
 # CREATE AND SAVE MODELS #
 ####################################################################################################################################################
@@ -189,12 +193,10 @@ for stock in stocks.symbol.unique():
     bPar = batch_params (sum(these), batch_size = 64, timesteps = 32, test_percent = 0.1)
     these = BoolToIndex(these)
     model, X_all, y_all, sc = streamlined_model (stocks.iloc[these, 2:3].values, bPar, epochs, stock)
-    save_data(stock, model, X_all, y_all, bPar, sc)
-
-
-
-# model, X_all, y_all, sc = streamlined_model (TSLA.iloc[:,4:5].values, bPar, epochs, 'TSLA')
-# save_data('TSLA', 'closing', model, X_all, y_all, bPar, sc, dataset = TSLA, save_data = True)
-
-# model, X_all, y_all, sc = streamlined_model (TSLA.iloc[:,7:8].values, bPar, epochs, 'TSLA_daily_change')
-# save_data('TSLA', 'daily_change', model, X_all, y_all, bPar, sc)
+    stocks['date'] = pd.to_datetime(stocks['date'] )
+    dates = stocks.iloc[these, 0].values
+    print(len(dates))
+    for i in range(bPar['timesteps']):
+        date = dates[-1]
+        dates = np.append(dates, date)
+    save_data(stock, model, X_all, y_all, bPar, sc, dates)
