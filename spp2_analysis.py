@@ -248,7 +248,7 @@ def pred_res(regressor_mae, bPar, sc, X_all, y_all, target_dir, pre_name, dates)
 
     plt.legend()
     plt.title(title)
-    plt.xlabel('Market Days After IPO')
+    plt.xlabel('Market Days')
     plt.ylabel('Residuals')
 
     f_name0 = pre_name + 'Residuals.png'
